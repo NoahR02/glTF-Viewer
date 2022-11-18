@@ -1,0 +1,10 @@
+# Editors
+.vs
+.vscode
+.idea
+
+# Build Folder
+/build
+
+# Odin Language Server (OLS)
+/ols.json
