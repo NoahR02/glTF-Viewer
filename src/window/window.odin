@@ -77,4 +77,7 @@ should_close :: proc(using window: Window) -> b32 {
 
 switch_to_rendering_on_this_window :: proc(using window: Window) {
   glfw.MakeContextCurrent(window_handle)
+  active_window_width = width
+  active_window_height = height
+  active_window_handle = window_handle
 }
