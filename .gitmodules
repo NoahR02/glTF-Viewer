@@ -1,0 +1,3 @@
+[submodule "third-party/cgltf"]
+	path = third-party/cgltf
+	url = https://github.com/sumofat/odin_cgltf.git
