@@ -1,47 +1,29 @@
 package rpg
 
 import "core:fmt"
+import "core:path/filepath"
+import "core:encoding/json"
+import "core:encoding/base64"
+import "core:math/linalg/glsl"
 
 import gl "vendor:OpenGL"
-import "core:math/linalg/glsl"
 import "vendor:glfw"
 
 import "window"
 import "input"
 import "nodes/camera"
+import "renderer"
 
 main :: proc() {
-
   game_window, err := window.create(1600, 900, "rpg")
   window.switch_to_rendering_on_this_window(game_window)
-  
-  vertices := [?]f32 {
-    -0.5,  0.5, 0.0,
-    -0.5, -0.5, 0.0,
-    0.5,  0.5, 0.0,
-    0.5, -0.5, 0.0,
-  }
-
-  indices := [?]u32 {
-    0, 1, 2,
-    2, 1, 3,
-  }
-
-  vao, ebo, vbo: u32
-
-  gl.GenVertexArrays(1, &vao)
-  gl.GenBuffers(1, &vbo)
-  gl.GenBuffers(1, &ebo)
-
-  gl.BindVertexArray(vao)
-  gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
-  gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo)
-
-  gl.BufferData(gl.ARRAY_BUFFER, size_of(vertices), &vertices[0], gl.STATIC_DRAW)
-  gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, size_of(indices), &indices[0], gl.STATIC_DRAW)
-
-  gl.EnableVertexAttribArray(0)
-  gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0)
+  gl.Enable(gl.DEBUG_OUTPUT)
+  gl.Enable(gl.DEBUG_OUTPUT_SYNCHRONOUS)
+  gl.DebugMessageCallback(renderer.debug_proc_t, nil)
+  gl.DebugMessageControl(gl.DEBUG_SOURCE_API, 
+    gl.DEBUG_TYPE_ERROR, 
+    gl.DEBUG_SEVERITY_HIGH,
+    0, nil, gl.TRUE)
 
   shader, shader_err := gl.load_shaders("assets/basic.vs", "assets/basic.fs")
   assert(bool(shader) == true, "Failed to load shader...")
@@ -54,10 +36,11 @@ main :: proc() {
   gl.Enable(gl.BLEND);
   gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
+  gltf_data := renderer.load("assets/triangle.gltf")
+  fmt.println(gltf_data)
 
   delta: f64
   last_frame: f64
-
   for !window.should_close(game_window) {
     now := glfw.GetTime()
     delta = now - last_frame
@@ -66,6 +49,7 @@ main :: proc() {
     window.switch_to_rendering_on_this_window(game_window)
     window.poll_events()
 
+    if input.is_key_pressed(glfw.KEY_ESCAPE) do break
     camera.process_mouse_input(&editor_camera)
     camera.process_input(&editor_camera, delta)
   
@@ -75,7 +59,13 @@ main :: proc() {
     gl.UseProgram(shader)
     gl.UniformMatrix4fv(gl.GetUniformLocation(shader, "u_projection"), 1, gl.FALSE, &editor_camera.projection[0][0])
     gl.UniformMatrix4fv(gl.GetUniformLocation(shader, "u_view"), 1, gl.FALSE, &editor_camera.view[0][0])
-    gl.DrawElements(gl.TRIANGLES, len(indices), gl.UNSIGNED_INT, nil)
+
+    for mesh in gltf_data.meshes {
+      for render_object in mesh.render_objects {
+       gl.BindVertexArray(render_object.vao)
+       gl.DrawElements(gl.TRIANGLES, i32(render_object.count), gl.UNSIGNED_SHORT, nil)
+      }
+    }
 
     window.swap_buffers(game_window)
   }
