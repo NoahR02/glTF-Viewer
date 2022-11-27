@@ -110,7 +110,9 @@ internal_gltf_load :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
       switch buffer_view.type {
         case .vertices: buffer.type = .Array_Buffer
         case .indices: buffer.type = .Element_Array_Buffer
-        case .invalid: fmt.println("FIXME: Handle invalid buffer views.")
+        case .invalid: 
+          // If no target is present, default to Element_Array_Buffer
+          buffer.type = .Element_Array_Buffer
       }
       gl.GenBuffers(1, &buffer.renderer_id)
       gl.BindBuffer(u32(buffer.type), buffer.renderer_id)

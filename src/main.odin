@@ -36,8 +36,9 @@ main :: proc() {
   gl.Enable(gl.BLEND);
   gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-  gltf_data := renderer.gltf_load("assets/Box/glTF/Box.gltf")
+  //gltf_data := renderer.gltf_load("assets/Box/glTF/Box.gltf")
   // Not Working
+  gltf_data := renderer.gltf_load("assets/Avocado/glTF/Avocado.gltf")
   //gltf_data := renderer.gltf_load("assets/Fox/glTF/Fox.gltf")
   // gltf_data := renderer.gltf_load("assets/glTF/FlightHelmet.gltf")
 
