@@ -36,7 +36,10 @@ main :: proc() {
   gl.Enable(gl.BLEND);
   gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-  gltf_data := renderer.load("assets/Box/glTF/Box.gltf")
+  gltf_data := renderer.gltf_load("assets/Box/glTF/Box.gltf")
+  // Not Working
+  //gltf_data := renderer.gltf_load("assets/Fox/glTF/Fox.gltf")
+  // gltf_data := renderer.gltf_load("assets/glTF/FlightHelmet.gltf")
 
   delta: f64
   last_frame: f64
@@ -51,7 +54,7 @@ main :: proc() {
     if input.is_key_pressed(glfw.KEY_ESCAPE) do break
     camera.process_mouse_input(&editor_camera)
     camera.process_input(&editor_camera, delta)
-  
+    
     gl.ClearColor(0.3, 0, 0.3, 1)
     gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
@@ -59,12 +62,7 @@ main :: proc() {
     gl.UniformMatrix4fv(gl.GetUniformLocation(shader, "u_projection"), 1, gl.FALSE, &editor_camera.projection[0][0])
     gl.UniformMatrix4fv(gl.GetUniformLocation(shader, "u_view"), 1, gl.FALSE, &editor_camera.view[0][0])
 
-    for mesh in gltf_data.meshes {
-      for render_object in mesh.render_objects {
-       gl.BindVertexArray(render_object.vao)
-       gl.DrawElements(gl.TRIANGLES, i32(render_object.count), gl.UNSIGNED_SHORT, nil)
-      }
-    }
+    renderer.gltf_draw_all_scenes(gltf_data)
 
     window.swap_buffers(game_window)
   }
