@@ -30,14 +30,13 @@ main :: proc() {
 
   editor_camera := camera.init_camera(f32(window.active_window_width/window.active_window_height), 45.0, {0, 0, 3})  
 
-  gl.Enable(gl.DEPTH_TEST);  
+  gl.Enable(gl.DEPTH_TEST)
   glfw.SetInputMode(cast(glfw.WindowHandle)window.active_window_handle, glfw.CURSOR, glfw.CURSOR_DISABLED)
 
   gl.Enable(gl.BLEND);
   gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-  gltf_data := renderer.load("assets/triangle.gltf")
-  fmt.println(gltf_data)
+  gltf_data := renderer.load("assets/Box/glTF/Box.gltf")
 
   delta: f64
   last_frame: f64

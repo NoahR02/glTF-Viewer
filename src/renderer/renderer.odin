@@ -1,14 +1,14 @@
 package renderer
 
-import "gltf"
+import "../../third-party/cgltf"
 import "core:strings"
 import gl "vendor:OpenGL"
 import "core:fmt"
 import "core:slice"
 import "core:mem"
-import "core:encoding/json"
-import "core:encoding/base64"
 import "core:runtime"
+
+
 
 debug_proc_t :: proc "c" (source: u32, type: u32, id: u32, severity: u32, length: i32, message: cstring, userParam: rawptr) {
   context = runtime.default_context()
@@ -104,31 +104,91 @@ GLTF_Data :: struct {
   gl_attribute_layouts: [dynamic]Attribute_Layout,
 }
 
+find_cgltf_buffer_view_index :: proc(buffer_ptr: ^cgltf.buffer_view, cgltf_data: cgltf.data) -> Buffer_Handle {
+  for cgltf_node_index in 0..<cgltf_data.buffer_views_count {
+    if buffer_ptr == &cgltf_data.buffer_views[cgltf_node_index] {
+      return Buffer_Handle(cgltf_node_index)
+    }
+  }
+  return Invalid_Buffer_Handle
+}
+find_cgltf_node_index :: proc(node_ptr: ^cgltf.node, cgltf_data: cgltf.data) -> Node_Handle {
+  for cgltf_node_index in 0..<cgltf_data.nodes_count {
+    if node_ptr == &cgltf_data.nodes[cgltf_node_index] {
+      return Node_Handle(cgltf_node_index)
+    }
+  }
+  return Invalid_Node_Handle
+}
+find_cgltf_mesh_index :: proc(mesh_ptr: ^cgltf.mesh, cgltf_data: cgltf.data) -> Mesh_Handle {
+  for cgltf_mesh_index in 0..<cgltf_data.meshes_count {
+    if mesh_ptr == &cgltf_data.meshes[cgltf_mesh_index] {
+      return Mesh_Handle(cgltf_mesh_index)
+    }
+  }
+  return Invalid_Mesh_Handle
+}
+find_cgltf_scene_index :: proc(scene_ptr: ^cgltf.scene, cgltf_data: cgltf.data) -> Scene_Handle {
+  for cgltf_scene_index in 0..<cgltf_data.scenes_count {
+    if scene_ptr == &cgltf_data.scenes[cgltf_scene_index] {
+      return Scene_Handle(cgltf_scene_index)
+    }
+  }
+  return Invalid_Scene_Handle
+}
+
+find_cgltf_accessor_index :: proc(accessor_ptr: ^cgltf.accessor, cgltf_data: cgltf.data) -> Attribute_Layout_Handle {
+  for cgltf_accessor_index in 0..<cgltf_data.accessors_count {
+    if accessor_ptr == &cgltf_data.accessors[cgltf_accessor_index] {
+      return Attribute_Layout_Handle(cgltf_accessor_index)
+    }
+  }
+  return Invalid_Attribute_Layout_Handle
+}
+
 load :: proc(path: string) -> (gltf_data: GLTF_Data) {
 
-  json_gltf_data := gltf.load(path)
+  options: cgltf.options
+  data: ^cgltf.data
+  path_cstr := strings.clone_to_cstring(path, context.temp_allocator)
+  did_parse := cgltf.parse_file(&options, path_cstr, &data)
+  did_load_buffers := cgltf.load_buffers(&options, data, path_cstr)
+  
+  if did_parse != .success {
+    fmt.println("FAILED TO LOAD", path, "ERROR:", did_parse)
+  }
 
-  load_buffers :: proc(gltf_data: ^GLTF_Data, json_gltf: json.Object) {
+  if did_load_buffers != .success {
+    fmt.println("FAILED TO LOAD BUFFERS", path, "ERROR:", did_load_buffers)
+  }
+
+  load_buffers :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
     dummy_vao: u32
     gl.GenVertexArrays(1, &dummy_vao)
     gl.BindVertexArray(dummy_vao)
 
-    for buffer_view in json_gltf["bufferViews"].(json.Array) {
-      buffer_view := buffer_view.(json.Object)
+    for buffer_view_index in 0..<cgltf_data.buffer_views_count {
+      buffer_view := cgltf_data.buffer_views[buffer_view_index]
       buffer: GL_Buffer
       defer append_elem(&gltf_data.gl_buffers, buffer)
 
+      switch buffer_view.type {
+        case .vertices: buffer.type = .ARRAY_BUFFER
+        case .indices: buffer.type = .ELEMENT_ARRAY_BUFFER
+        case .invalid: {
+          fmt.println("FIXME: Handle invalid buffer views.")
+          buffer.type = .ARRAY_BUFFER
+        }
+      }
 
-      buffer.type = GL_Buffer_Type(buffer_view["target"].(json.Integer))
       gl.GenBuffers(1, &buffer.buffer)
       gl.BindBuffer(u32(buffer.type), buffer.buffer)
-
-      gltf_json_buffer := json_gltf["buffers"].(json.Array)[buffer_view["buffer"].(json.Integer)]
       
-      offset := buffer_view["byteOffset"].(json.Integer)
-      length := buffer_view["byteLength"].(json.Integer)
+      offset := buffer_view.offset
+      length := buffer_view.size
 
-      ptr := gltf.decode_buffer(gltf_json_buffer)
+      ptr := slice.bytes_from_ptr(buffer_view.buffer.data, int(buffer_view.buffer.size))
+
       buffer_view_buffer_tmp := ptr[offset: offset + length]
       gl.BufferData(u32(buffer.type), int(length), &buffer_view_buffer_tmp[0], gl.STATIC_DRAW)
     }
@@ -137,28 +197,44 @@ load :: proc(path: string) -> (gltf_data: GLTF_Data) {
     gl.DeleteVertexArrays(1, &dummy_vao)
   }
 
-  load_attribute_layouts :: proc(gltf_data: ^GLTF_Data, json_gltf: json.Object) {
-    for accessor in json_gltf["accessors"].(json.Array)  {
-      accessor := accessor.(json.Object)
+  load_attribute_layouts :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
+    for accessor_index in 0..<cgltf_data.accessors_count  {
+      accessor := cgltf_data.accessors[accessor_index]
 
       attribute_layout: Attribute_Layout
       defer append_elem(&gltf_data.gl_attribute_layouts, attribute_layout)
 
-      offset := accessor["byteOffset"].(json.Integer)
-      component_type := accessor["componentType"].(json.Integer)
+      offset := accessor.offset
+      component_type := accessor.component_type
       // Scalars or Vectors
-      element_type := accessor["type"].(json.String)
-      count := accessor["count"].(json.Integer)
+      element_type := accessor.type
+      count := accessor.count
 
-      attribute_layout.buffer = Buffer_Handle(accessor["bufferView"].(json.Integer))
+      attribute_layout.buffer = find_cgltf_buffer_view_index(accessor.buffer_view, cgltf_data)
       attribute_layout.offset = int(offset)
 
       attribute_layout.component_type = Attribute_Layout_Component_Type(component_type)
+      switch component_type {
+        case .r_8:   attribute_layout.component_type = .BYTE
+        case .r_8u:  attribute_layout.component_type = .UNSIGNED_BYTE
+        case .r_16:  attribute_layout.component_type = .SHORT
+        case .r_16u: attribute_layout.component_type = .UNSIGNED_SHORT
+        case .r_32u: attribute_layout.component_type = .UNSIGNED_INT
+        case .r_32f: attribute_layout.component_type = .FLOAT
+        case .invalid: {
+          fmt.eprintln("FIXME: handle invalid component types")
+        }
+      }
+      
       switch element_type {
-        case "SCALAR": attribute_layout.component_size = 1
-        case "VEC2": attribute_layout.component_size = 2
-        case "VEC3": attribute_layout.component_size = 3
-        case "VEC4": attribute_layout.component_size = 4
+        case .scalar: attribute_layout.component_size = 1
+        case .vec2: attribute_layout.component_size = 2
+        case .vec3: attribute_layout.component_size = 3
+        case .vec4: attribute_layout.component_size = 4
+        case .mat2: attribute_layout.component_size = 4
+        case .invalid, .mat3, .mat4: {
+          fmt.eprintln("FIXME: Handle more component types")
+        }
       }
 
       component_type_byte_size: int 
@@ -175,28 +251,25 @@ load :: proc(path: string) -> (gltf_data: GLTF_Data) {
      When a buffer view is used for vertex attribute data, it MAY have a byteStride property.
       This property defines the stride in bytes between each vertex.
      */
-      byte_stride, has_byte_stride := accessor["byteStride"]
-      if has_byte_stride {
-        attribute_layout.stride = int(byte_stride.(json.Integer))
-      } else {
+      attribute_layout.stride = int(accessor.stride)
         // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#data-alignment
         // When byteStride of the referenced bufferView is not defined, it means that accessor elements are tightly packed.
-        attribute_layout.stride = 0
-      }
+        //attribute_layout.stride = 0
+
 
       attribute_layout.count = int(count)
     }
   }
 
-  load_meshes :: proc(gltf_data: ^GLTF_Data, json_gltf: json.Object) {
+  load_meshes :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
     
-    for json_mesh in json_gltf["meshes"].(json.Array) {
-      json_mesh := json_mesh.(json.Object)
+    for mesh_index in 0..<cgltf_data.meshes_count {
+      gltf_mesh := cgltf_data.meshes[mesh_index]
       mesh: Mesh
       defer append_elem(&gltf_data.meshes, mesh)
       
-      for json_primitive in json_mesh["primitives"].(json.Array) {
-        json_primitive := json_primitive.(json.Object)
+      for primitive_index in 0..<gltf_mesh.primitives_count {
+        gltf_primitive := gltf_mesh.primitives[primitive_index]
         render_object: Render_Object
         defer append_elem(&mesh.render_objects, render_object)
   /*       if cgltf_primtive.indices == nil {
@@ -206,12 +279,18 @@ load :: proc(path: string) -> (gltf_data: GLTF_Data) {
         gl.GenVertexArrays(1, &render_object.vao)
         gl.BindVertexArray(render_object.vao)
 
-        for json_attribute, val in json_primitive["attributes"].(json.Object) {
+        for gltf_attribute_index in 0..<gltf_primitive.attributes_count {
+          gltf_attribute := gltf_primitive.attributes[gltf_attribute_index]
           slot: int
-         /*  switch cgltf_attribute.name {
+           switch gltf_attribute.name {
             case "POSITION": slot = 0
-          } */
-          attribute_layout := gltf_data.gl_attribute_layouts[val.(json.Integer)]
+            case: {
+              fmt.println("FIXME: Add more attribute slots", gltf_attribute.name)
+              continue
+            }
+          }
+          //attribute_layout := gltf_data.gl_attribute_layouts[val.(json.Integer)]
+          attribute_layout := gltf_data.gl_attribute_layouts[find_cgltf_accessor_index(gltf_attribute.data, cgltf_data)]
           render_object.count = attribute_layout.count
           
           buffer := gltf_data.gl_buffers[attribute_layout.buffer]
@@ -222,7 +301,8 @@ load :: proc(path: string) -> (gltf_data: GLTF_Data) {
           false, i32(attribute_layout.stride), uintptr(attribute_layout.offset))
         }
 
-        indices_accessor := gltf_data.gl_attribute_layouts[json_primitive["indices"].(json.Integer)]
+        indices_index := find_cgltf_accessor_index(gltf_primitive.indices, cgltf_data)
+        indices_accessor := gltf_data.gl_attribute_layouts[indices_index]
         indices_buffer := gltf_data.gl_buffers[indices_accessor.buffer]
         gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices_buffer.buffer)
         gl.VertexArrayElementBuffer(render_object.vao, indices_buffer.buffer)
@@ -232,46 +312,43 @@ load :: proc(path: string) -> (gltf_data: GLTF_Data) {
 
   }
 
-  load_nodes :: proc(gltf_data: ^GLTF_Data, json_gltf: json.Object) {
-    for json_node in json_gltf["nodes"].(json.Array) {
-      json_node := json_node.(json.Object)
+  load_nodes :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
+    for node_index in 0..<cgltf_data.nodes_count {
+      gltf_node := cgltf_data.nodes[node_index]
       node: Node
       defer append_elem(&gltf_data.nodes, node)
 
-      node.mesh = Mesh_Handle(json_node["mesh"].(json.Integer))
-
-      /* for json_child_node in json_node["children"].(json.Array) {
-        json_child_node := json_child_node.(json.Integer)
-        append_elem(&node.children, Node_Handle(json_child_node))
-      } */
-      
-    }
-  }
-
-
-  load_scenes :: proc(gltf_data: ^GLTF_Data, json_gltf: json.Object) {
-    for json_scene in json_gltf["scenes"].(json.Array) {
-      json_scene := json_scene.(json.Object)
-      scene: Scene
-      defer append_elem(&gltf_data.scenes, scene)
-
-      for node in json_scene["nodes"].(json.Array) {
-        node := node.(json.Integer)
-        append_elem(&scene.nodes, Node_Handle(node))
+      node.mesh = find_cgltf_mesh_index(gltf_node.mesh, cgltf_data)
+      for child_node_index in 0..<gltf_node.children_count {
+        child_node := find_cgltf_node_index(&cgltf_data.nodes[child_node_index], cgltf_data)
+        append_elem(&node.children, child_node)
       }
       
     }
   }
 
-  root := json_gltf_data.(json.Object)
-  load_buffers(&gltf_data, root)
+
+  load_scenes :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
+    for scene_index in 0..<cgltf_data.scenes_count {
+      gltf_scene := cgltf_data.scenes[scene_index]
+      scene: Scene
+      defer append_elem(&gltf_data.scenes, scene)
+
+      for node_index in 0..<gltf_scene.nodes_count {
+        node := find_cgltf_node_index(&cgltf_data.nodes[node_index], cgltf_data)
+        append_elem(&scene.nodes, node)
+      }
+      
+    }
+  }
+
+  load_buffers(&gltf_data, data^)
    // We need the accessors for when we define the VAO's layout.
-  load_attribute_layouts(&gltf_data, root)
-  load_meshes(&gltf_data, root)
-  load_nodes(&gltf_data, root)
-  load_scenes(&gltf_data, root)
-  gltf_data.default_scene = Scene_Handle(root["scene"].(json.Integer))
-  //fmt.println(gltf_data)
+  load_attribute_layouts(&gltf_data, data^)
+  load_meshes(&gltf_data, data^)
+  load_nodes(&gltf_data, data^)
+  load_scenes(&gltf_data, data^)
+  //gltf_data.default_scene = Scene_Handle(root["scene"].(json.Integer))
   return
 }
 
