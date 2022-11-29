@@ -63,6 +63,8 @@ Vertex_Array :: struct {
   indices_component_type: Component_Type,
   // How many Indicies? len(indices)
   count: int,
+  
+  has_indices: bool,
 }
 
 component_type_to_byte_size :: proc(type: Component_Type) -> int {
