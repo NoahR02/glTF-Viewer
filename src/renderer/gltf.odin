@@ -14,22 +14,17 @@ Node_Handle :: distinct int
 Scene_Handle :: distinct int
 Mesh_Handle :: distinct int
 Buffer_View_Handle :: distinct int
-Attribute_Layout_Handle :: distinct int
+Accessor_Handle :: distinct int
 
 Invalid_Node_Handle :: Node_Handle(-1)
 Invalid_Scene_Handle :: Scene_Handle(-1)
 Invalid_Mesh_Handle :: Mesh_Handle(-1)
 Invalid_Buffer_View_Handle :: Buffer_View_Handle(-1)
-Invalid_Attribute_Layout_Handle :: Attribute_Layout_Handle(-1)
-
-Accessor :: struct {
-	buffer:       Buffer_View_Handle,
-	vertex_array: Vertex_Array,
-}
+Invalid_Accessor_Handle :: Accessor_Handle(-1)
 
 // The attribute layout for VAOs
 // https://docs.gl/gl3/glVertexAttribPointer
-Attribute_Layout :: struct {
+Accessor :: struct {
 	buffer:         Buffer_View_Handle,
 	component_size: int, // vao size
 	component_type: Component_Type, // vao type
@@ -64,7 +59,7 @@ GLTF_Data :: struct {
 	scenes:            [dynamic]Scene,
 	nodes:             [dynamic]Node,
 	meshes:            [dynamic]Mesh,
-	attribute_layouts: [dynamic]Attribute_Layout,
+	accessors:         [dynamic]Accessor,
 
 	// NOTE: The indices map to glTF buffer view indices, not glTF buffers!
 	// gl_buffers[0] -> cgltf_data.buffer_views[0]
@@ -146,18 +141,18 @@ load_attribute_layouts :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
 
 	// Get all the data we need to configure the Vertex Attributes later on.
 	for accessor_index in 0 ..< cgltf_data.accessors_count {
-		accessor := cgltf_data.accessors[accessor_index]
+		cgltf_accessor := cgltf_data.accessors[accessor_index]
 
-		attribute_layout: ^Attribute_Layout = &gltf_data.attribute_layouts[accessor_index]
+		accessor: ^Accessor = &gltf_data.accessors[accessor_index]
 
-		attribute_layout.buffer = find_cgltf_buffer_view_index(accessor.buffer_view, cgltf_data)
-		attribute_layout.offset = int(accessor.offset)
-		attribute_layout.component_type = cgltf_component_type_to_component_type(
-			accessor.component_type,
+		accessor.buffer = find_cgltf_buffer_view_index(cgltf_accessor.buffer_view, cgltf_data)
+		accessor.offset = int(cgltf_accessor.offset)
+		accessor.component_type = cgltf_component_type_to_component_type(
+			cgltf_accessor.component_type,
 		)
-		attribute_layout.vector_type = cgltf_vector_type_to_vector_type(accessor.type)
-		attribute_layout.stride = int(accessor.stride)
-		attribute_layout.count = int(accessor.count)
+		accessor.vector_type = cgltf_vector_type_to_vector_type(cgltf_accessor.type)
+		accessor.stride = int(cgltf_accessor.stride)
+		accessor.count = int(cgltf_accessor.count)
 	}
 
 }
@@ -192,23 +187,23 @@ load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgl
 				fmt.println("FIXME: Add more attribute slots", gltf_attribute.name)
 			}
 
-			attribute_layout :=
-				gltf_data.attribute_layouts[
+			accessors :=
+				gltf_data.accessors[
 					find_cgltf_accessor_index(gltf_attribute.data, cgltf_data) \
 				]
 
 			load_buffer(gltf_data, cgltf_data, gltf_attribute.data.buffer_view)
-			buffer := gltf_data.gl_buffers[attribute_layout.buffer]
+			buffer := gltf_data.gl_buffers[accessors.buffer]
 			gl.BindBuffer(gl.ARRAY_BUFFER, buffer.renderer_id)
 
 			gl.EnableVertexAttribArray(u32(slot))
 			gl.VertexAttribPointer(
 				u32(slot),
-				i32(vector_type_to_number_of_components(attribute_layout.vector_type)),
-				u32(attribute_layout.component_type),
+				i32(vector_type_to_number_of_components(accessors.vector_type)),
+				u32(accessors.component_type),
 				false,
-				i32(attribute_layout.stride),
-				uintptr(attribute_layout.offset),
+				i32(accessors.stride),
+				uintptr(accessors.offset),
 			)
 		}
 
@@ -219,7 +214,7 @@ load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgl
 		} else {
 			vao.has_indices = true
 			indices_accessor :=
-				gltf_data.attribute_layouts[
+				gltf_data.accessors[
 					find_cgltf_accessor_index(gltf_primitive.indices, cgltf_data) \
 				]
 			load_buffer(gltf_data, cgltf_data, gltf_primitive.indices.buffer_view)
@@ -260,7 +255,7 @@ internal_gltf_load :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
 	resize_dynamic_array(&gltf_data.scenes, int(cgltf_data.scenes_count))
 	resize_dynamic_array(&gltf_data.meshes, int(cgltf_data.meshes_count))
 	resize_dynamic_array(&gltf_data.nodes, int(cgltf_data.nodes_count))
-	resize_dynamic_array(&gltf_data.attribute_layouts, int(cgltf_data.accessors_count))
+	resize_dynamic_array(&gltf_data.accessors, int(cgltf_data.accessors_count))
 	resize_dynamic_array(&gltf_data.gl_buffers, int(cgltf_data.buffer_views_count))
 
 	load_attribute_layouts(gltf_data, cgltf_data)

@@ -40,13 +40,13 @@ find_cgltf_scene_index :: proc(scene_ptr: ^cgltf.scene, cgltf_data: cgltf.data) 
   return Invalid_Scene_Handle
 }
 @(private)
-find_cgltf_accessor_index :: proc(accessor_ptr: ^cgltf.accessor, cgltf_data: cgltf.data) -> Attribute_Layout_Handle {
+find_cgltf_accessor_index :: proc(accessor_ptr: ^cgltf.accessor, cgltf_data: cgltf.data) -> Accessor_Handle {
   for cgltf_accessor_index in 0..<cgltf_data.accessors_count {
     if accessor_ptr == &cgltf_data.accessors[cgltf_accessor_index] {
-      return Attribute_Layout_Handle(cgltf_accessor_index)
+      return Accessor_Handle(cgltf_accessor_index)
     }
   }
-  return Invalid_Attribute_Layout_Handle
+  return Invalid_Accessor_Handle
 }
 
 @(private)
