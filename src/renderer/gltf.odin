@@ -179,14 +179,10 @@ load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgl
 		vao: Vertex_Array
 		defer append_elem(&mesh.render_objects, vao)
 
-		if gltf_primitive.indices == nil {
-			fmt.eprintln("FIXME: Handle non indexed geometry")
-			//continue
-		}
-
 		gl.GenVertexArrays(1, &vao.renderer_id)
 		gl.BindVertexArray(vao.renderer_id)
 
+    accessor_draw_count := 0
 		for gltf_attribute_index in 0 ..< gltf_primitive.attributes_count {
 			gltf_attribute := gltf_primitive.attributes[gltf_attribute_index]
 
@@ -224,11 +220,13 @@ load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgl
 				i32(gltf_attribute.data.buffer_view.stride),
 				uintptr(gltf_attribute.data.offset),
 			)
+      accessor_draw_count = int(gltf_attribute.data.count)
 		}
 
 		if gltf_primitive.indices == nil {
-			fmt.eprintln("FIXME: Handle non indexed geometry")
 			vao.has_indices = false
+      // When we are not working with indexed geometry, then use the accessor count which should be the same for each attribute's accessor.
+      vao.count = accessor_draw_count
 		} else {
 			vao.has_indices = true
 			indices_accessor :=
@@ -302,11 +300,11 @@ gltf_draw_all_scenes :: proc(gltf_data: GLTF_Data, shader: u32) {
             u32(render_object.primitive_mode),
             i32(render_object.count),
             u32(render_object.indices_component_type),
+            // The byte offset FROM the start of the buffer view.
             rawptr(uintptr(render_object.offset)),
           )
         } else {
-          fmt.println("FIXME: DRAWING NON INDEXED GEOMETRY")
-          gl.DrawArrays(gl.TRIANGLES, 0, 500)
+          gl.DrawArrays(gl.TRIANGLES, 0, i32(render_object.count))
         }
       }
     }

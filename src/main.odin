@@ -39,8 +39,8 @@ main :: proc() {
   //gltf_data := renderer.gltf_load("assets/Box/glTF/Box.gltf")
   //gltf_data := renderer.gltf_load("assets/Avocado/glTF/Avocado.gltf")
   // Not Working
-  //gltf_data := renderer.gltf_load("assets/Fox/glTF/Fox.gltf")
-  gltf_data := renderer.gltf_load("assets/glTF/FlightHelmet.gltf")
+  gltf_data := renderer.gltf_load("assets/Fox/glTF/Fox.gltf")
+  //gltf_data := renderer.gltf_load("assets/glTF/FlightHelmet.gltf")
 
   delta: f64
   last_frame: f64
