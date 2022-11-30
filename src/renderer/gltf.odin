@@ -3,6 +3,7 @@ package renderer
 import "../../third-party/cgltf"
 import "core:strings"
 import gl "vendor:OpenGL"
+import "core:math/linalg/glsl"
 import "core:fmt"
 import "core:slice"
 import "core:mem"
@@ -34,17 +35,29 @@ Accessor :: struct {
 	count:          int,
 }
 
+Transform :: struct {
+  rotation: glsl.quat,
+  scale: glsl.vec3,
+  translation: glsl.vec3,
+}
+
+Material :: struct {
+  
+}
+
 // Each Mesh is NOT a draw call.
 // Meshes have RenderObjects and each RenderObject IS a draw call.
 Mesh :: struct {
 	name:           string,
 	render_objects: [dynamic]Vertex_Array,
+  material:       Material,
 }
 
 Node :: struct {
 	name:     string,
 	mesh:     Mesh_Handle,
 	children: [dynamic]Node_Handle,
+  transform: Transform,
 }
 
 Scene :: struct {
@@ -107,7 +120,6 @@ load_buffer :: proc(
 	buffer_view: ^cgltf.buffer_view,
 ) {
 	buffer_view_handle := find_cgltf_buffer_view_index(buffer_view, cgltf_data)
-
 	if buffer_view_handle == Invalid_Buffer_View_Handle {
 		fmt.eprintln("FIXME: Handle buffer views not being found")
 	}
@@ -124,6 +136,7 @@ load_buffer :: proc(
 	case .indices:
 		buffer.type = .Element_Array_Buffer
 	case .invalid:
+    fmt.println("invalid")
 		// If no target is present, default to Element_Array_Buffer
 		buffer.type = .Element_Array_Buffer
 	}
@@ -161,7 +174,7 @@ load_attribute_layouts :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
 load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgltf.mesh) {
   mesh_index := find_cgltf_mesh_index(gltf_mesh, cgltf_data)
 	mesh: ^Mesh = &gltf_data.meshes[mesh_index]
-	for primitive_index in 0 ..< gltf_mesh.primitives_count {
+	for primitive_index in 0..< gltf_mesh.primitives_count {
 		gltf_primitive := gltf_mesh.primitives[primitive_index]
 		vao: Vertex_Array
 		defer append_elem(&mesh.render_objects, vao)
@@ -177,14 +190,20 @@ load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgl
 		for gltf_attribute_index in 0 ..< gltf_primitive.attributes_count {
 			gltf_attribute := gltf_primitive.attributes[gltf_attribute_index]
 
-			slot := 0
+			slot := -1
 			switch gltf_attribute.name {
 			case "POSITION":
 				slot = 0
-			case "NORMAL":
-				slot = 1
-			case:
-				fmt.println("FIXME: Add more attribute slots", gltf_attribute.name)
+      case "NORMAL":
+        slot = 1
+      case "TANGENT":
+        slot = 2  
+      case "TEXCOORD_0":
+        slot = 3  
+			case: {
+        fmt.println("FIXME: Add more attribute slots", gltf_attribute.name)
+        continue
+      }
 			}
 
 			accessors :=
@@ -201,15 +220,14 @@ load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgl
 				u32(slot),
 				i32(vector_type_to_number_of_components(accessors.vector_type)),
 				u32(accessors.component_type),
-				false,
-				i32(accessors.stride),
-				uintptr(accessors.offset),
+				gltf_attribute.data.normalized ? gl.TRUE : gl.FALSE,
+				i32(gltf_attribute.data.buffer_view.stride),
+				uintptr(gltf_attribute.data.offset),
 			)
 		}
 
 		if gltf_primitive.indices == nil {
-			//fmt.eprintln("FIXME: Handle non indexed geometry")
-			//continue
+			fmt.eprintln("FIXME: Handle non indexed geometry")
 			vao.has_indices = false
 		} else {
 			vao.has_indices = true
@@ -220,10 +238,10 @@ load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgl
 			load_buffer(gltf_data, cgltf_data, gltf_primitive.indices.buffer_view)
 			indices_buffer := gltf_data.gl_buffers[indices_accessor.buffer]
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices_buffer.renderer_id)
-			gl.VertexArrayElementBuffer(vao.renderer_id, indices_buffer.renderer_id)
 			vao.indices_component_type = indices_accessor.component_type
 			vao.primitive_mode = cgltf_primitive_type_to_primitive_type(gltf_primitive.type)
 			vao.count = indices_accessor.count
+      vao.offset = indices_accessor.offset
 		}
 
 	}
@@ -239,7 +257,11 @@ load_nodes :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
 
 		node.mesh = find_cgltf_mesh_index(gltf_node.mesh, cgltf_data)
     node.name = strings.clone_from_cstring(gltf_node.name)
-    load_mesh(gltf_data, cgltf_data, gltf_node.mesh)
+    if node.mesh != Invalid_Mesh_Handle do load_mesh(gltf_data, cgltf_data, gltf_node.mesh)
+
+    if gltf_node.has_translation {
+      node.transform.translation = gltf_node.translation.xyz
+    }
 
 		for child_node_index in 0 ..< gltf_node.children_count {
 			child_node := find_cgltf_node_index(&cgltf_data.nodes[child_node_index], cgltf_data)
@@ -258,26 +280,36 @@ internal_gltf_load :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
 	resize_dynamic_array(&gltf_data.accessors, int(cgltf_data.accessors_count))
 	resize_dynamic_array(&gltf_data.gl_buffers, int(cgltf_data.buffer_views_count))
 
+	load_scenes(gltf_data, cgltf_data)
 	load_attribute_layouts(gltf_data, cgltf_data)
 	load_nodes(gltf_data, cgltf_data)
-	load_scenes(gltf_data, cgltf_data)
 	gltf_data.default_scene = find_cgltf_scene_index(cgltf_data.scene, cgltf_data)
 }
 
-gltf_draw_all_scenes :: proc(gltf_data: GLTF_Data) {
-	for mesh in gltf_data.meshes {
-		for render_object in mesh.render_objects {
-			gl.BindVertexArray(render_object.renderer_id)
-			if render_object.has_indices {
-				gl.DrawElements(
-					u32(render_object.primitive_mode),
-					i32(render_object.count),
-					u32(render_object.indices_component_type),
-					nil,
-				)
-			} else {
-				gl.DrawArrays(gl.TRIANGLES, 0, 500)
-			}
-		}
-	}
+gltf_draw_all_scenes :: proc(gltf_data: GLTF_Data, shader: u32) {
+	
+  for scene in gltf_data.scenes {
+    for node_index in 0..<len(scene.nodes) {
+      node := gltf_data.nodes[node_index]
+      if node.mesh == -1 do continue
+      for render_object in gltf_data.meshes[node.mesh].render_objects {
+        gl.BindVertexArray(render_object.renderer_id)
+        model := glsl.mat4Translate(node.transform.translation)
+        //model := glsl.identity(glsl.mat4)
+        gl.UniformMatrix4fv(gl.GetUniformLocation(shader, "u_model"), 1, gl.FALSE, &model[0][0])
+        if render_object.has_indices {
+          gl.DrawElements(
+            u32(render_object.primitive_mode),
+            i32(render_object.count),
+            u32(render_object.indices_component_type),
+            rawptr(uintptr(render_object.offset)),
+          )
+        } else {
+          fmt.println("FIXME: DRAWING NON INDEXED GEOMETRY")
+          gl.DrawArrays(gl.TRIANGLES, 0, 500)
+        }
+      }
+    }
+  }
+
 }

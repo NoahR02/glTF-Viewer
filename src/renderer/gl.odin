@@ -65,6 +65,7 @@ Vertex_Array :: struct {
   count: int,
   
   has_indices: bool,
+  offset: int,
 }
 
 component_type_to_byte_size :: proc(type: Component_Type) -> int {

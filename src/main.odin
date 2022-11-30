@@ -37,10 +37,10 @@ main :: proc() {
   gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
   //gltf_data := renderer.gltf_load("assets/Box/glTF/Box.gltf")
-  gltf_data := renderer.gltf_load("assets/Avocado/glTF/Avocado.gltf")
+  //gltf_data := renderer.gltf_load("assets/Avocado/glTF/Avocado.gltf")
   // Not Working
   //gltf_data := renderer.gltf_load("assets/Fox/glTF/Fox.gltf")
-  // gltf_data := renderer.gltf_load("assets/glTF/FlightHelmet.gltf")
+  gltf_data := renderer.gltf_load("assets/glTF/FlightHelmet.gltf")
 
   delta: f64
   last_frame: f64
@@ -58,12 +58,12 @@ main :: proc() {
     
     gl.ClearColor(0.3, 0, 0.3, 1)
     gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
+    gl.PolygonMode( gl.FRONT_AND_BACK, gl.LINE );
     gl.UseProgram(shader)
     gl.UniformMatrix4fv(gl.GetUniformLocation(shader, "u_projection"), 1, gl.FALSE, &editor_camera.projection[0][0])
     gl.UniformMatrix4fv(gl.GetUniformLocation(shader, "u_view"), 1, gl.FALSE, &editor_camera.view[0][0])
 
-    renderer.gltf_draw_all_scenes(gltf_data)
+    renderer.gltf_draw_all_scenes(gltf_data, shader)
 
     window.swap_buffers(game_window)
   }
