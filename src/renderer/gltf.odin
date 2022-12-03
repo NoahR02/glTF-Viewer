@@ -73,6 +73,7 @@ GLTF_Data :: struct {
 	nodes:             [dynamic]Node,
 	meshes:            [dynamic]Mesh,
 	accessors:         [dynamic]Accessor,
+  tmp_map: map[rawptr]Node_Handle,
 
 	// NOTE: The indices map to glTF buffer view indices, not glTF buffers!
 	// gl_buffers[0] -> cgltf_data.buffer_views[0]
@@ -106,8 +107,8 @@ load_scenes :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
 		scene: ^Scene = &gltf_data.scenes[scene_index]
 
 		for node_index in 0 ..< gltf_scene.nodes_count {
-			node := find_cgltf_node_index(&cgltf_data.nodes[node_index], cgltf_data)
-			append_elem(&scene.nodes, node)
+			cgltf_node: ^cgltf.node = &cgltf_data.nodes[node_index]
+			append_elem(&scene.nodes, gltf_data.tmp_map[cgltf_node])
 		}
 
 	}
@@ -136,7 +137,6 @@ load_buffer :: proc(
 	case .indices:
 		buffer.type = .Element_Array_Buffer
 	case .invalid:
-    fmt.println("invalid")
 		// If no target is present, default to Element_Array_Buffer
 		buffer.type = .Element_Array_Buffer
 	}
@@ -196,6 +196,10 @@ load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgl
         slot = 2  
       case "TEXCOORD_0":
         slot = 3  
+      case "WEIGHTS_0":  
+        slot = 4
+      case "JOINTS_0":  
+        slot = 5        
 			case: {
         fmt.println("FIXME: Add more attribute slots", gltf_attribute.name)
         continue
@@ -249,24 +253,40 @@ load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgl
 @(private)
 load_nodes :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
 
-	for node_index in 0 ..< cgltf_data.nodes_count {
-		gltf_node := cgltf_data.nodes[node_index]
-		node: ^Node = &gltf_data.nodes[node_index]
-
-		node.mesh = find_cgltf_mesh_index(gltf_node.mesh, cgltf_data)
-    node.name = strings.clone_from_cstring(gltf_node.name)
-    if node.mesh != Invalid_Mesh_Handle do load_mesh(gltf_data, cgltf_data, gltf_node.mesh)
-
-    if gltf_node.has_translation {
-      node.transform.translation = gltf_node.translation.xyz
+  load_node :: proc(cgltf_node: ^cgltf.node, gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
+		
+    node: ^Node
+    node_handle := find_cgltf_node_index(cgltf_node, cgltf_data)
+    if node_handle == Invalid_Node_Handle {
+      new_handle := Node_Handle(len(gltf_data.nodes))
+      append_elem(&gltf_data.nodes, Node{})
+      node = &gltf_data.nodes[new_handle]
+      gltf_data.tmp_map[cgltf_node] = new_handle
+    } else {
+      node = &gltf_data.nodes[node_handle]
+      gltf_data.tmp_map[cgltf_node] = node_handle
     }
 
-		for child_node_index in 0 ..< gltf_node.children_count {
-			child_node := find_cgltf_node_index(&cgltf_data.nodes[child_node_index], cgltf_data)
-			append_elem(&node.children, child_node)
-		}
+    node.mesh = find_cgltf_mesh_index(cgltf_node.mesh, cgltf_data)
+    node.name = strings.clone_from_cstring(cgltf_node.name)
+    if node.mesh != Invalid_Mesh_Handle do load_mesh(gltf_data, cgltf_data, cgltf_node.mesh)
 
-	}
+    if cgltf_node.has_translation {
+      node.transform.translation = cgltf_node.translation.xyz
+    }
+
+		for child_node_index in 0 ..< cgltf_node.children_count {
+      cgltf_child_node: ^cgltf.node = cgltf_node.children[child_node_index] 
+
+      load_node(cgltf_child_node, gltf_data, cgltf_data)
+      new_child_node_handle := gltf_data.tmp_map[cgltf_child_node]
+      append_elem(&node.children, new_child_node_handle)
+		}
+  }
+
+	for node_index in 0 ..< cgltf_data.nodes_count {
+    load_node(&cgltf_data.nodes[node_index], gltf_data, cgltf_data)
+  }
 
 }
 
