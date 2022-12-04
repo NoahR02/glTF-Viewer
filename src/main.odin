@@ -41,8 +41,10 @@ main :: proc() {
   // Not Working
   //gltf_data := renderer.gltf_load("assets/Fox/glTF/Fox.gltf")
   //gltf_data := renderer.gltf_load("assets/glTF/FlightHelmet.gltf")
-  //gltf_data := renderer.gltf_load("assets/sasha/scene.gltf")
-  gltf_data := renderer.gltf_load("assets/Lantern/glTF/Lantern.gltf")
+  gltf_data := renderer.gltf_load("assets/sasha/scene.gltf")
+  //gltf_data := renderer.gltf_load("assets/Lantern/glTF/Lantern.gltf")
+  //gltf_data := renderer.gltf_load("assets/2CylinderEngine/glTF/2CylinderEngine.gltf")
+  //gltf_data := renderer.gltf_load("assets/Sponza/glTF/Sponza.gltf")
 
   delta: f64
   last_frame: f64

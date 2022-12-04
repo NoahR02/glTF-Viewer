@@ -103,7 +103,7 @@ gltf_load :: proc(path: string) -> (gltf_data: GLTF_Data) {
 @(private)
 load_scenes :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
 	for scene_index in 0 ..< cgltf_data.scenes_count {
-		gltf_scene := cgltf_data.scenes[scene_index]
+		gltf_scene: ^cgltf.scene = &cgltf_data.scenes[scene_index]
 		scene: ^Scene = &gltf_data.scenes[scene_index]
 
 		for node_index in 0 ..< gltf_scene.nodes_count {
@@ -154,7 +154,7 @@ load_attribute_layouts :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
 
 	// Get all the data we need to configure the Vertex Attributes later on.
 	for accessor_index in 0 ..< cgltf_data.accessors_count {
-		cgltf_accessor := cgltf_data.accessors[accessor_index]
+		cgltf_accessor: ^cgltf.accessor = &cgltf_data.accessors[accessor_index]
 
 		accessor: ^Accessor = &gltf_data.accessors[accessor_index]
 
@@ -171,11 +171,11 @@ load_attribute_layouts :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
 }
 
 @(private)
-load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgltf.mesh) {
-  mesh_index := find_cgltf_mesh_index(gltf_mesh, cgltf_data)
+load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, cgltf_mesh: ^cgltf.mesh) {
+  mesh_index := find_cgltf_mesh_index(cgltf_mesh, cgltf_data)
 	mesh: ^Mesh = &gltf_data.meshes[mesh_index]
-	for primitive_index in 0..< gltf_mesh.primitives_count {
-		gltf_primitive := gltf_mesh.primitives[primitive_index]
+	for primitive_index in 0..< cgltf_mesh.primitives_count {
+		cgltf_primitive: ^cgltf.primitive = &cgltf_mesh.primitives[primitive_index]
 		vao: Vertex_Array
 		defer append_elem(&mesh.render_objects, vao)
 
@@ -183,8 +183,8 @@ load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgl
 		gl.BindVertexArray(vao.renderer_id)
 
     accessor_draw_count := 0
-		for gltf_attribute_index in 0 ..< gltf_primitive.attributes_count {
-			gltf_attribute := gltf_primitive.attributes[gltf_attribute_index]
+		for gltf_attribute_index in 0 ..< cgltf_primitive.attributes_count {
+			gltf_attribute: ^cgltf.attribute = &cgltf_primitive.attributes[gltf_attribute_index]
 
 			slot := -1
 			switch gltf_attribute.name {
@@ -227,21 +227,18 @@ load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgl
       accessor_draw_count = int(gltf_attribute.data.count)
 		}
 
-		if gltf_primitive.indices == nil {
+		if cgltf_primitive.indices == nil {
 			vao.has_indices = false
       // When we are not working with indexed geometry, then use the accessor count which should be the same for each attribute's accessor.
       vao.count = accessor_draw_count
 		} else {
 			vao.has_indices = true
-			indices_accessor :=
-				gltf_data.accessors[
-					find_cgltf_accessor_index(gltf_primitive.indices, cgltf_data) \
-				]
-			load_buffer(gltf_data, cgltf_data, gltf_primitive.indices.buffer_view)
+			indices_accessor := gltf_data.accessors[find_cgltf_accessor_index(cgltf_primitive.indices, cgltf_data)]
+			load_buffer(gltf_data, cgltf_data, cgltf_primitive.indices.buffer_view)
 			indices_buffer := gltf_data.gl_buffers[indices_accessor.buffer]
 			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, indices_buffer.renderer_id)
 			vao.indices_component_type = indices_accessor.component_type
-			vao.primitive_mode = cgltf_primitive_type_to_primitive_type(gltf_primitive.type)
+			vao.primitive_mode = cgltf_primitive_type_to_primitive_type(cgltf_primitive.type)
 			vao.count = indices_accessor.count
       vao.offset = indices_accessor.offset
 		}
@@ -254,7 +251,6 @@ load_mesh :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data, gltf_mesh: ^cgl
 load_nodes :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
 
   load_node :: proc(cgltf_node: ^cgltf.node, gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
-		
     node: ^Node
     node_handle := find_cgltf_node_index(cgltf_node, cgltf_data)
     if node_handle == Invalid_Node_Handle {
@@ -298,19 +294,20 @@ internal_gltf_load :: proc(gltf_data: ^GLTF_Data, cgltf_data: cgltf.data) {
 	resize_dynamic_array(&gltf_data.accessors, int(cgltf_data.accessors_count))
 	resize_dynamic_array(&gltf_data.gl_buffers, int(cgltf_data.buffer_views_count))
 
-	load_scenes(gltf_data, cgltf_data)
 	load_attribute_layouts(gltf_data, cgltf_data)
 	load_nodes(gltf_data, cgltf_data)
-	gltf_data.default_scene = find_cgltf_scene_index(cgltf_data.scene, cgltf_data)
+	load_scenes(gltf_data, cgltf_data)
+	//gltf_data.default_scene = find_cgltf_scene_index(cgltf_data.scene, cgltf_data)
 }
 
 gltf_draw_all_scenes :: proc(gltf_data: GLTF_Data, shader: u32) {
 	
   for scene in gltf_data.scenes {
-    for node_index in 0..<len(scene.nodes) {
-      node := gltf_data.nodes[node_index]
-      if node.mesh == -1 do continue
-      for render_object in gltf_data.meshes[node.mesh].render_objects {
+    
+    for node in gltf_data.nodes {
+      if node.mesh == Invalid_Mesh_Handle do continue
+      mesh := gltf_data.meshes[node.mesh]
+      for render_object in mesh.render_objects {
         gl.BindVertexArray(render_object.renderer_id)
         model := glsl.mat4Translate(node.transform.translation)
         //model := glsl.identity(glsl.mat4)
@@ -325,9 +322,10 @@ gltf_draw_all_scenes :: proc(gltf_data: GLTF_Data, shader: u32) {
           )
         } else {
           gl.DrawArrays(gl.TRIANGLES, 0, i32(render_object.count))
-        }
+        } 
       }
     }
+
   }
 
 }
