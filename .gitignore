@@ -1,10 +1,45 @@
 # Editors
+.idea
 .vs
 .vscode
-.idea
 
-# Build Folder
-/build
+# Build Directory
+/cmake-build-debug
+/cmake-build-release
 
-# Odin Language Server (OLS)
-/ols.json
+/assets/*
+!/assets/basic.fs
+!/assets/basic.vs
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
