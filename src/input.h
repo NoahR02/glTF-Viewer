@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <bitset>
 
+#include "window/active_window.h"
+
 // https://www.glfw.org/docs/3.3/group__keys.html
 enum struct Key {
   KEY_UNKNOWN           = -1,
@@ -136,74 +138,42 @@ enum struct Mouse_Button {
   RIGHT,
 };
 
-namespace Input {
-  extern unsigned char keys[400];
-  extern unsigned char mouse_buttons[10];
-  extern double cursor_x;
-  extern double cursor_y;
-  extern double previous_cursor_x;
-  extern double previous_cursor_y;
-  extern bool mouse_cursor_changed;
-
+class Input {
+public:
   static bool is_key_pressed(Key key) {
-    return keys[(int)key] == GLFW_PRESS;
+    return glfwGetKey(active_window_handle, (int)key) == GLFW_PRESS;
   }
 
   static bool is_key_down(Key key) {
-    return keys[(int)key] == GLFW_PRESS || keys[(int)key] == GLFW_REPEAT;
+    auto key_state = glfwGetKey(active_window_handle, (int)key);
+    return key_state == GLFW_PRESS || key_state == GLFW_REPEAT;
   }
 
   static bool is_key_released(Key key) {
-    return keys[(int)key] == GLFW_RELEASE;
+    return glfwGetKey(active_window_handle, (int)key) == GLFW_RELEASE;
   }
 
   static bool is_key_repeated(Key key) {
-    return keys[(int)key] == GLFW_REPEAT;
+    return glfwGetKey(active_window_handle, (int)key) == GLFW_REPEAT;
   }
 
   static bool is_mouse_button_pressed(Mouse_Button mouse_button) {
-    return mouse_buttons[(int)mouse_button] == GLFW_PRESS;
+    return glfwGetMouseButton(active_window_handle, (int)mouse_button) == GLFW_PRESS;
   }
   static bool is_mouse_button_released(Mouse_Button mouse_button) {
-    return mouse_buttons[(int)mouse_button] == GLFW_RELEASE;
+    return glfwGetMouseButton(active_window_handle, (int)mouse_button) == GLFW_RELEASE;
   }
 
   static double mouse_x() {
-    return cursor_x;
+    double x, y;
+    glfwGetCursorPos(active_window_handle, &x, &y);
+    return x;
   }
 
   static double mouse_y() {
-    return cursor_y;
+    double x, y;
+    glfwGetCursorPos(active_window_handle, &x, &y);
+    return y;
   }
 
-  static double previous_mouse_x() {
-    return previous_cursor_x;
-  }
-
-  static double previous_mouse_y() {
-    return previous_cursor_y;
-  }
-
-}
-
-// https://www.glfw.org/docs/3.3/group__input.html#ga5bd751b27b90f865d2ea613533f0453c
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-  if(key <= GLFW_KEY_UNKNOWN)
-    return;
-
-  Input::keys[(int)key] = action;
-}
-
-// https://www.glfw.org/docs/3.3/group__input.html#ga0184dcb59f6d85d735503dcaae809727
-static void mouse_callback(GLFWwindow *window, int button, int action, int mods) {
-  Input::mouse_buttons[(int)button] = action;
-}
-
-// https://www.glfw.org/docs/3.3/group__input.html#ga0184dcb59f6d85d735503dcaae809727
-static void cursor_pos_callback(GLFWwindow *window, double xpos, double ypos) {
-  Input::mouse_cursor_changed = true;
-  Input::previous_cursor_x = Input::cursor_x;
-  Input::previous_cursor_y = Input::cursor_y;
-  Input::cursor_x = xpos;
-  Input::cursor_y = ypos;
-}
+};

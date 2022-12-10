@@ -29,6 +29,12 @@ struct Editor_Camera {
   glm::vec3 right;
   glm::vec3 direction = {0.0, 0.0, -1.0f};
 
+  float mouse_previous_x;
+  float mouse_previous_y;
+
+  float mouse_x;
+  float mouse_y;
+
   Editor_Camera(const glm::vec3& position, const Projection_Data& projection_data) : position(position), projection_data(projection_data) {
     recalculate_camera();
   }
@@ -60,16 +66,21 @@ struct Editor_Camera {
   }
 
   void process_mouse_input() {
-    float previous_x = Input::previous_mouse_x();
-    float previous_y = Input::previous_mouse_y();
+    mouse_previous_x = mouse_x;
+    mouse_previous_y = mouse_y;
+    mouse_x = Input::mouse_x();
+    mouse_y = Input::mouse_y();
 
-    if (first_mouse) {
-      previous_x = Input::mouse_x();
-      previous_y = Input::mouse_y();
+    if(first_mouse) {
+      int window_width; int window_height;
+      glfwGetWindowSize(active_window_handle, &window_width, &window_height);
+      mouse_previous_x = window_width / 2.0f;
+      mouse_previous_y = window_height / 2.0f;
       first_mouse = false;
     }
-    float dx = Input::mouse_x() - previous_x;
-    float dy = previous_y - Input::mouse_y();
+
+    float dx = mouse_x - mouse_previous_x;
+    float dy = mouse_previous_y - mouse_y;
 
     const float sensitivity = 0.05f;
     dx *= sensitivity;

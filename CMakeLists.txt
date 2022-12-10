@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(game)
 
-add_executable(${PROJECT_NAME} src/main.cpp src/renderer/renderer.h src/editor_camera.h src/input.h src/input.cpp src/renderer/gltf.h src/renderer/gl.h)
+add_executable(${PROJECT_NAME} src/main.cpp src/renderer/renderer.h src/editor_camera.h src/input.h src/renderer/gltf.h src/renderer/gl.h src/window/window.h src/window/active_window.h src/window/active_window.cpp)
 
 include(FetchContent)
 

@@ -60,21 +60,11 @@ enum struct Component_Type {
   Double = GL_DOUBLE,
 };
 
-/* // The attribute layout for VAOs
-// https://docs.gl/gl3/glVertexAttribPointer
-Attribute_Layout :: struct {
-  component_size: int,  // vao size
-  vector_type:    Vector_Type,
-  component_type: Component_Type, // vao type
-  stride: int,          // vao stride
-  offset: int,          // vao pointer
-} */
-
 struct Vertex_Array {
   uint32_t renderer_id{};
   Primitive_Mode primitive_mode{};
   Component_Type indices_component_type{};
-  // How many Indicies? len(indices)
+  // How many Indices? len(indices)
   int count;
 
   bool has_indices{};

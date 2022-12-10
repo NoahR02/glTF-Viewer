@@ -16,46 +16,6 @@
 #include "glm/gtc/type_ptr.hpp"
 #include <filesystem>
 
-struct Texture {
-
-  unsigned int renderer_id;
-  std::string type;
-  int width;
-  int height;
-  int channels;
-
-
-  explicit Texture(const std::string& texturePath) {
-    stbi_set_flip_vertically_on_load(true);
-    unsigned char* data = stbi_load(texturePath.c_str(), &width, &height, &channels, 4);
-
-    glGenTextures(1, &renderer_id);
-    glBindTexture(GL_TEXTURE_2D, renderer_id);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    stbi_image_free(data);
-    glBindTexture(GL_TEXTURE_2D, 0);
-  }
-
-  void bind() const {
-    glBindTexture(GL_TEXTURE_2D, renderer_id);
-  }
-
-  void unbind() const {
-    glBindTexture(GL_TEXTURE_2D, 0);
-  }
-
-  Texture() {
-    glDeleteTextures(1, &renderer_id);
-  }
-};
-
 struct Shader_Program {
   unsigned int renderer_id;
 
