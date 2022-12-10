@@ -66,6 +66,10 @@ struct Scene {
   std::vector<Node_Handle>nodes;
 };
 
+struct Animation {
+  float duration;
+};
+
 struct GLTF_Data {
 
   Scene_Handle default_scene = Invalid_Scene_Handle;
@@ -83,6 +87,20 @@ struct GLTF_Data {
   // NOTE: The indices map to glTF buffer view indices, not glTF buffers!
   // gl_buffers[0] -> cgltf_data.buffer_views[0]
   std::vector<Buffer> gl_buffers{};
+
+  GLTF_Data() {
+    glGenTextures(1, reinterpret_cast<GLuint *>(&default_material.base_texture));
+    glBindTexture(GL_TEXTURE_2D, default_material.base_texture);
+    glActiveTexture(0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    unsigned char white_texture[4] = {255, 255, 255, 255};
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &white_texture[0]);
+  }
 
 private:
 
@@ -318,11 +336,19 @@ private:
             material = materials[sub_mesh.material];
           }
 
-          Texture2D& base_texture = textures[material.base_texture];
-          glBindTexture(GL_TEXTURE_2D, base_texture.renderer_id);
-          glActiveTexture(0);
+          if(material.base_texture > -1) {
+            Texture2D& base_texture = textures[material.base_texture];
+            glBindTexture(GL_TEXTURE_2D, base_texture.renderer_id);
+            glActiveTexture(0);
 
-          glUniform1i(glGetUniformLocation(shader, "tex_slot"), 0);
+            glUniform1i(glGetUniformLocation(shader, "tex_slot"), 0);
+          } else {
+            glBindTexture(GL_TEXTURE_2D, material.base_texture);
+            glActiveTexture(0);
+
+            glUniform1i(glGetUniformLocation(shader, "tex_slot"), 0);
+          }
+
           glUniformMatrix4fv(glGetUniformLocation(shader, "u_model"), 1, GL_FALSE, &model[0][0]);
           glUniform4fv(glGetUniformLocation(shader, "u_base_color"), 1, &material.base_color[0]);
 

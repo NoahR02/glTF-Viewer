@@ -69,12 +69,14 @@ void render() {
   float last_frame;
 
   GLTF_Data data;
+  GLTF_Data data2;
   //data.load("assets/Box/glTF/Box.gltf");
-  data.load("assets/Sponza/glTF/Sponza.gltf");
+  //data.load("assets/Sponza/glTF/Sponza.gltf");
   //data.load("assets/RiggedFigure/glTF/RiggedFigure.gltf");
   //data.load("assets/Fox/glTF/Fox.gltf");
+  data.load("assets/2CylinderEngine/glTF/2CylinderEngine.gltf");
   //data.load("assets/ABeautifulGame/glTF/ABeautifulGame.gltf");
-  //data.load("assets/sasha/scene.gltf");
+  //data2.load("assets/sasha/scene.gltf");
   //data.load("assets/glTF/FlightHelmet.gltf");
   //data.load("assets/Lantern/glTF/Lantern.gltf");
 
@@ -125,7 +127,7 @@ void render() {
     data.draw_all_scenes(shader.renderer_id);
 
     ImGui::Begin("GLTF File");
-    imgui_list_gltf_file(data);
+    //imgui_list_gltf_file(data);
     ImGui::End();
 
     ImGui::Render();
