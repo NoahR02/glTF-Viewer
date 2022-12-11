@@ -25,12 +25,6 @@ struct Accessor {
   int count{};
 };
 
-struct Transform {
-  glm::quat rotation{};
-  glm::vec3 scale = {1.0f, 1.0f, 1.0f};
-  glm::vec3 translation{};
-};
-
 struct Texture2D {
   unsigned int renderer_id{};
 };
@@ -58,7 +52,7 @@ struct Node {
   std::string name{};
   Mesh_Handle mesh = Invalid_Mesh_Handle;
   std::vector<Node_Handle> children{};
-  Transform transform{};
+  glm::mat4 transform = glm::mat4(1.0f);
 };
 
 struct Scene {
@@ -279,9 +273,61 @@ private:
       node.name = std::move(gltf_node.name);
       node.children = std::move(gltf_node.children);
       node.mesh = gltf_node.mesh;
-      for(int i = 0; i < gltf_node.translation.size(); ++i) {
-        node.transform.translation[i] = gltf_node.translation[i];
+
+      glm::mat4 translation_mat4(1.0f);
+      glm::mat4 rotation_mat4(1.0f);
+      glm::mat4 scale_mat4(1.0f);
+      glm::mat4 gltf_matrix(1.0f);
+
+      if(gltf_node.translation.size() > 0) {
+        translation_mat4[3][0] = gltf_node.translation[0];
+        translation_mat4[3][1] = gltf_node.translation[1];
+        translation_mat4[3][2] = gltf_node.translation[2];
       }
+
+      if(gltf_node.rotation.size() > 0) {
+        glm::quat tmp_quat(gltf_node.rotation[3], gltf_node.rotation[0], gltf_node.rotation[1], gltf_node.rotation[2]);
+        // glTF Quat = (x, y, z, w)
+        // glm Quat = (x, y, z, w)
+        rotation_mat4 = glm::mat4_cast(tmp_quat);
+      }
+
+      if(gltf_node.scale.size() > 0) {
+        scale_mat4[0][0] = gltf_node.scale[0];
+        scale_mat4[1][1] = gltf_node.scale[1];
+        scale_mat4[2][2] = gltf_node.scale[2];
+      }
+
+      if(gltf_node.matrix.size() > 0) {
+
+        // First Column
+        gltf_matrix[0][0] = gltf_node.matrix[0];
+        gltf_matrix[0][1] = gltf_node.matrix[1];
+        gltf_matrix[0][2] = gltf_node.matrix[2];
+        gltf_matrix[0][3] = gltf_node.matrix[3];
+
+        // Second Column
+        gltf_matrix[1][0] = gltf_node.matrix[4];
+        gltf_matrix[1][1] = gltf_node.matrix[5];
+        gltf_matrix[1][2] = gltf_node.matrix[6];
+        gltf_matrix[1][3] = gltf_node.matrix[7];
+
+        // Third Column
+        gltf_matrix[2][0] = gltf_node.matrix[8];
+        gltf_matrix[2][1] = gltf_node.matrix[9];
+        gltf_matrix[2][2] = gltf_node.matrix[10];
+        gltf_matrix[2][3] = gltf_node.matrix[11];
+
+        // Fourth Column
+        gltf_matrix[3][0] = gltf_node.matrix[12];
+        gltf_matrix[3][1] = gltf_node.matrix[13];
+        gltf_matrix[3][2] = gltf_node.matrix[14];
+        gltf_matrix[3][3] = gltf_node.matrix[15];
+
+      }
+
+      node.transform = gltf_matrix * translation_mat4 * rotation_mat4 * scale_mat4;
+
       if(node.mesh != Invalid_Mesh_Handle) load_mesh(gltf_data);
     }
   }
@@ -318,20 +364,23 @@ private:
 
   void draw_all_scenes(unsigned int shader) {
 
-    for(auto scene : scenes) {
-      for(auto node : nodes) {
+    std::function<void(const Node&, const glm::mat4&)> draw_node;
 
-        if(node.mesh == Invalid_Mesh_Handle) continue;
+    draw_node = [&draw_node, this, &shader](const Node& node, const glm::mat4& transform) {
+
+      if(node.mesh == Invalid_Mesh_Handle) {
+
+      } else {
         auto mesh = meshes[node.mesh];
 
         for(auto sub_mesh : mesh.sub_meshes) { // Start
           glBindVertexArray(sub_mesh.vao.renderer_id);
-          auto model = glm::translate(glm::mat4(1.0f), node.transform.translation);
+          // TRS
+          auto model = transform;
 
           Material material;
           if(sub_mesh.material == -1) {
             material = default_material;
-            std::cout << "???";
           } else {
             material = materials[sub_mesh.material];
           }
@@ -362,9 +411,21 @@ private:
           } else {
             glDrawArrays(static_cast<GLenum>(sub_mesh.vao.primitive_mode), 0, (sub_mesh.vao.count));
           }
+      }
 
-        } // End
+      } // End
 
+      for(int child_node_handle : node.children) {
+        auto child_node = nodes[child_node_handle];
+        draw_node(child_node, transform * child_node.transform);
+      }
+
+    };
+
+    for(auto scene : scenes) {
+      for(auto scene_node_handle : scene.nodes) {
+        auto node = nodes[scene_node_handle];
+        draw_node(node, node.transform);
       }
     }
 

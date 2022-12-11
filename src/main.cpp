@@ -76,9 +76,10 @@ void render() {
   //data.load("assets/Fox/glTF/Fox.gltf");
   data.load("assets/2CylinderEngine/glTF/2CylinderEngine.gltf");
   //data.load("assets/ABeautifulGame/glTF/ABeautifulGame.gltf");
-  //data2.load("assets/sasha/scene.gltf");
+  //data.load("assets/sasha/scene.gltf");
   //data.load("assets/glTF/FlightHelmet.gltf");
   //data.load("assets/Lantern/glTF/Lantern.gltf");
+  //data2.load("assets/sasha/scene.gltf");
 
   ImGui::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
@@ -125,6 +126,7 @@ void render() {
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     data.draw_all_scenes(shader.renderer_id);
+    //data2.draw_all_scenes(shader.renderer_id);
 
     ImGui::Begin("GLTF File");
     //imgui_list_gltf_file(data);
