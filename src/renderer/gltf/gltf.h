@@ -1,68 +1,12 @@
 #pragma once
-#include "renderer.h"
-#include "gl.h"
-#include "tiny_gltf.h"
+#include "../renderer.h"
+#include "../gl.h"
+#include "common.h"
 
-typedef int Node_Handle;
-typedef int Scene_Handle;
-typedef int Mesh_Handle;
-typedef int Buffer_View_Handle;
-typedef int Accessor_Handle;
-
-constexpr Node_Handle Invalid_Node_Handle = Node_Handle(-1);
-constexpr Node_Handle Invalid_Scene_Handle = Scene_Handle(-1);
-constexpr Node_Handle Invalid_Mesh_Handle = Mesh_Handle(-1);
-constexpr Node_Handle Invalid_Buffer_View_Handle = Buffer_View_Handle(-1);
-constexpr Node_Handle Invalid_Accessor_Handle = Accessor_Handle(-1);
-
-// The attribute layout for VAOs
-// https://docs.gl/gl3/glVertexAttribPointer
-struct Accessor {
-  Buffer_View_Handle buffer_view = Invalid_Buffer_View_Handle;
-  int component_type{}; // vao type
-  int type{};
-  int byte_offset{}; // vao pointer
-  int count{};
-};
-
-struct Texture2D {
-  unsigned int renderer_id{};
-};
-
-struct Material {
-  glm::vec4 base_color = {1.0f, 1.0f, 1.0f, 1.0f};
-  int base_texture = -1;
-};
-
-#define BUFFER_OFFSET(i) ((char *)NULL + (i))
-
-struct SubMesh {
-  Vertex_Array vao{};
-  int material{};
-};
-
-// Each Mesh is NOT a draw call.
-// Meshes have RenderObjects and each RenderObject IS a draw call.
-struct Mesh {
-  std::string name{};
-  std::vector<SubMesh> sub_meshes{};
-};
-
-struct Node {
-  std::string name{};
-  Mesh_Handle mesh = Invalid_Mesh_Handle;
-  std::vector<Node_Handle> children{};
-  glm::mat4 transform = glm::mat4(1.0f);
-};
-
-struct Scene {
-  std::string name{};
-  std::vector<Node_Handle>nodes;
-};
-
-struct Animation {
-  float duration;
-};
+#include <glm/gtx/matrix_decompose.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <tiny_gltf.h>
+#include <span>
 
 struct GLTF_Data {
 
@@ -75,6 +19,8 @@ struct GLTF_Data {
   std::vector<Accessor> accessors{};
   std::vector<Material> materials{};
   std::vector<Texture2D> textures{};
+  std::vector<Animation> animations{};
+  std::vector<Buffer_View> buffer_views{};
 
   Material default_material{};
 
@@ -98,13 +44,25 @@ struct GLTF_Data {
 
 private:
 
-  void load_scenes(const tinygltf::Model& gltf_data) {
+  void load_scenes(tinygltf::Model& gltf_data) {
     for (int scene_index = 0; scene_index < gltf_data.scenes.size(); ++scene_index) {
-      const auto& gltf_scene = gltf_data.scenes[scene_index];
+      auto& gltf_scene = gltf_data.scenes[scene_index];
       auto& scene = scenes[scene_index];
 
       scene.name = std::move(gltf_scene.name);
       scene.nodes = std::move(gltf_scene.nodes);
+    }
+  }
+
+  void load_buffer_views(const tinygltf::Model& gltf_data) {
+    for (int buffer_view_index = 0; buffer_view_index < gltf_data.bufferViews.size(); ++buffer_view_index) {
+      auto& gltf_buffer_view = gltf_data.bufferViews[buffer_view_index];
+      auto& buffer_view = buffer_views[buffer_view_index];
+
+      buffer_view.byte_offset = gltf_buffer_view.byteOffset;
+      buffer_view.byte_length = gltf_buffer_view.byteLength;
+      buffer_view.byte_stride = gltf_buffer_view.byteStride;
+      buffer_view.buffer = gltf_buffer_view.buffer;
     }
   }
 
@@ -130,10 +88,10 @@ private:
     glBufferData(buffer.target, gltf_buffer_view.byteLength, &gltf_buffer.data.at(0) + gltf_buffer_view.byteOffset, GL_STATIC_DRAW);
   }
 
-  void load_attribute_layouts(const tinygltf::Model& gltf_data) {
+  void load_accessors(tinygltf::Model& gltf_data) {
     // Get all the data we need to configure the Vertex Attributes later on.
     for(int accessor_index = 0; accessor_index < gltf_data.accessors.size(); ++accessor_index) {
-      const auto& gltf_accessor = gltf_data.accessors[accessor_index];
+      auto& gltf_accessor = gltf_data.accessors[accessor_index];
       auto& accessor = accessors[accessor_index];
 
       accessor.buffer_view = gltf_accessor.bufferView;
@@ -141,6 +99,9 @@ private:
       accessor.component_type = gltf_accessor.componentType;
       accessor.type = gltf_accessor.type;
       accessor.count = gltf_accessor.count;
+
+      accessor.min = std::move(gltf_accessor.minValues);
+      accessor.max = std::move(gltf_accessor.maxValues);
     }
 
   }
@@ -200,7 +161,7 @@ private:
     }
   }
 
-  void load_mesh(const tinygltf::Model& gltf_data) {
+  void load_mesh(tinygltf::Model& gltf_data) {
     for (int mesh_index = 0; mesh_index < gltf_data.meshes.size(); ++mesh_index) {
       auto& mesh = meshes[mesh_index];
       const auto& gltf_mesh = gltf_data.meshes[mesh_index];
@@ -214,11 +175,11 @@ private:
         auto accessor_draw_count = 0;
         for (auto& gltf_attribute : gltf_primitive.attributes) {
           auto slot = -1;
-          if (gltf_attribute.first.compare("POSITION") == 0) slot = 0;
-          if (gltf_attribute.first.compare("NORMAL") == 0) slot = 1;
-          if (gltf_attribute.first.compare("TEXCOORD_0") == 0) slot = 2;
-          if (gltf_attribute.first.compare("JOINTS_0") == 0) slot = 3;
-          if (gltf_attribute.first.compare("WEIGHTS_0") == 0) slot = 4;
+          if (gltf_attribute.first == "POSITION") slot = 0;
+          if (gltf_attribute.first == "NORMAL") slot = 1;
+          if (gltf_attribute.first == "TEXCOORD_0") slot = 2;
+          if (gltf_attribute.first == "JOINTS_0") slot = 3;
+          if (gltf_attribute.first == "WEIGHTS_0") slot = 4;
           if (slot <= -1) {
             continue;
           }
@@ -265,9 +226,9 @@ private:
   }
 
 
-  void load_nodes(const tinygltf::Model& gltf_data) {
+  void load_nodes(tinygltf::Model& gltf_data) {
     for(int node_index = 0; node_index < gltf_data.nodes.size(); ++node_index) {
-      const auto& gltf_node = gltf_data.nodes[node_index];
+      auto& gltf_node = gltf_data.nodes[node_index];
       auto& node = nodes[node_index];
 
       node.name = std::move(gltf_node.name);
@@ -279,77 +240,136 @@ private:
       glm::mat4 scale_mat4(1.0f);
       glm::mat4 gltf_matrix(1.0f);
 
-      if(gltf_node.translation.size() > 0) {
+      if(!gltf_node.translation.empty()) {
         translation_mat4[3][0] = gltf_node.translation[0];
         translation_mat4[3][1] = gltf_node.translation[1];
         translation_mat4[3][2] = gltf_node.translation[2];
       }
 
-      if(gltf_node.rotation.size() > 0) {
-        glm::quat tmp_quat(gltf_node.rotation[3], gltf_node.rotation[0], gltf_node.rotation[1], gltf_node.rotation[2]);
+      if(!gltf_node.rotation.empty()) {
         // glTF Quat = (x, y, z, w)
-        // glm Quat = (x, y, z, w)
+        // glm Quat constructor = (w, x, y, z)
+        glm::quat tmp_quat(gltf_node.rotation[3], gltf_node.rotation[0], gltf_node.rotation[1], gltf_node.rotation[2]);
         rotation_mat4 = glm::mat4_cast(tmp_quat);
       }
 
-      if(gltf_node.scale.size() > 0) {
+      if(!gltf_node.scale.empty()) {
         scale_mat4[0][0] = gltf_node.scale[0];
         scale_mat4[1][1] = gltf_node.scale[1];
         scale_mat4[2][2] = gltf_node.scale[2];
       }
 
-      if(gltf_node.matrix.size() > 0) {
+      if(!gltf_node.matrix.empty()) {
+        gltf_matrix = glm::make_mat4(&gltf_node.matrix[0]);
 
-        // First Column
-        gltf_matrix[0][0] = gltf_node.matrix[0];
-        gltf_matrix[0][1] = gltf_node.matrix[1];
-        gltf_matrix[0][2] = gltf_node.matrix[2];
-        gltf_matrix[0][3] = gltf_node.matrix[3];
+        glm::quat rot{};
+        glm::vec3 scale{}, skew{}, translation{};
+        glm::vec4 perpsective;
+        glm::decompose(gltf_matrix, scale, rot, translation, skew, perpsective);
 
-        // Second Column
-        gltf_matrix[1][0] = gltf_node.matrix[4];
-        gltf_matrix[1][1] = gltf_node.matrix[5];
-        gltf_matrix[1][2] = gltf_node.matrix[6];
-        gltf_matrix[1][3] = gltf_node.matrix[7];
-
-        // Third Column
-        gltf_matrix[2][0] = gltf_node.matrix[8];
-        gltf_matrix[2][1] = gltf_node.matrix[9];
-        gltf_matrix[2][2] = gltf_node.matrix[10];
-        gltf_matrix[2][3] = gltf_node.matrix[11];
-
-        // Fourth Column
-        gltf_matrix[3][0] = gltf_node.matrix[12];
-        gltf_matrix[3][1] = gltf_node.matrix[13];
-        gltf_matrix[3][2] = gltf_node.matrix[14];
-        gltf_matrix[3][3] = gltf_node.matrix[15];
-
+        translation_mat4[3][0] = translation[0];
+        translation_mat4[3][1] = translation[1];
+        translation_mat4[3][2] = translation[2];
+        rotation_mat4 = glm::mat4_cast(rot);
+        scale_mat4[0][0] = scale[0];
+        scale_mat4[1][1] = scale[1];
+        scale_mat4[2][2] = scale[2];
       }
 
-      node.transform = gltf_matrix * translation_mat4 * rotation_mat4 * scale_mat4;
+
+      node.translation = translation_mat4;
+      node.rotation = rotation_mat4;
+      node.scale = scale_mat4;
+
 
       if(node.mesh != Invalid_Mesh_Handle) load_mesh(gltf_data);
     }
   }
 
-  void internal_gltf_load(const tinygltf::Model& gltf_data) {
+  void load_animations(tinygltf::Model& gltf_data) {
+
+    for (int animation_index = 0; animation_index < gltf_data.animations.size(); ++animation_index) {
+      auto& gltf_animation = gltf_data.animations[animation_index];
+      auto& animation = animations[animation_index];
+
+      animation.channels.resize(gltf_animation.channels.size());
+      animation.samplers.resize(gltf_animation.samplers.size());
+
+      //animation.name = std::move(gltf_animation.name);
+
+      for(int channel_index = 0; channel_index < gltf_animation.channels.size(); ++channel_index) {
+        auto& gltf_channel = gltf_animation.channels[channel_index];
+        auto& channel = animation.channels[channel_index];
+
+        if (gltf_channel.target_path == "translation") channel.target_path = Target_Path::Translation;
+        if (gltf_channel.target_path == "rotation") channel.target_path = Target_Path::Rotation;
+        if (gltf_channel.target_path == "scale") channel.target_path = Target_Path::Scale;
+        if (gltf_channel.target_path == "weights") channel.target_path = Target_Path::Weights;
+
+        channel.target_node = Node_Handle(gltf_channel.target_node);
+        channel.sampler = gltf_channel.sampler;
+      }
+
+      for(int sampler_index = 0; sampler_index < animation.samplers.size(); ++sampler_index) {
+        auto& gltf_sampler = gltf_animation.samplers[sampler_index];
+        auto& sampler = animation.samplers[sampler_index];
+
+        if(gltf_sampler.interpolation == "LINEAR") sampler.interpolation = Interpolation::Linear;
+        sampler.input  = Accessor_Handle(gltf_sampler.input);
+        sampler.output = Accessor_Handle(gltf_sampler.output);
+
+        auto& input_buffer_accessor = accessors[sampler.input];
+        auto& output_buffer_accessor = accessors[sampler.output];
+
+        auto& gltf_input_buffer_accessor = gltf_data.accessors[sampler.input];
+        auto& gltf_output_buffer_accessor = gltf_data.accessors[sampler.output];
+        auto& gltf_input_buffer_bufferview= gltf_data.bufferViews[input_buffer_accessor.buffer_view];
+        auto& gltf_output_buffer_bufferview = gltf_data.bufferViews[output_buffer_accessor.buffer_view];
+
+        Buffer& input_buffer = gl_buffers[accessors[sampler.input].buffer_view];
+        Buffer& output_buffer = gl_buffers[accessors[sampler.output].buffer_view];
+
+        const auto gltf_input_buffer = gltf_data.buffers[gltf_data.bufferViews[gltf_input_buffer_accessor.bufferView].buffer];
+        const auto gltf_output_buffer = gltf_data.buffers[gltf_data.bufferViews[gltf_output_buffer_accessor.bufferView].buffer];
+
+        input_buffer.data.resize(gltf_data.bufferViews[gltf_input_buffer_accessor.bufferView].byteLength);
+        output_buffer.data.resize(gltf_data.bufferViews[gltf_output_buffer_accessor.bufferView].byteLength);
+
+        for (int i = 0; i < gltf_input_buffer_bufferview.byteLength; ++i) {
+          input_buffer.data[i] = gltf_input_buffer.data[i + gltf_input_buffer_bufferview.byteOffset];
+        }
+
+        for (int i = 0; i < gltf_output_buffer_bufferview.byteLength; ++i) {
+          output_buffer.data[i] = gltf_output_buffer.data[i + gltf_output_buffer_bufferview.byteOffset];
+        }
+
+      }
+
+    }
+  }
+
+  void internal_gltf_load(tinygltf::Model& gltf_data) {
     scenes.resize(gltf_data.scenes.size());
     meshes.resize(gltf_data.meshes.size());
     nodes.resize(gltf_data.nodes.size());
     accessors.resize(gltf_data.accessors.size());
     gl_buffers.resize(gltf_data.bufferViews.size());
+    buffer_views.resize(gltf_data.bufferViews.size());
     materials.resize(gltf_data.materials.size());
     textures.resize(gltf_data.textures.size());
+    animations.resize(gltf_data.animations.size());
 
-    load_attribute_layouts(gltf_data);
+    load_buffer_views(gltf_data);
+    load_accessors(gltf_data);
     load_textures(gltf_data);
     load_materials(gltf_data);
     load_nodes(gltf_data);
     load_scenes(gltf_data);
+    load_animations(gltf_data);
     //gltf_data.default_scene = find_cgltf_scene_index(cgltf_data.scene, cgltf_data)
   }
 
-  public:
+public:
     void load(const std::string& path) {
       tinygltf::TinyGLTF loader;
       tinygltf::Model data;
@@ -359,13 +379,12 @@ private:
       bool res = loader.LoadASCIIFromFile(&data, &err, &warn, path);
 
       internal_gltf_load(data);
-      return;
-    }
+   }
+
+  float time = 0.0f;
 
   void draw_all_scenes(unsigned int shader) {
-
     std::function<void(const Node&, const glm::mat4&)> draw_node;
-
     draw_node = [&draw_node, this, &shader](const Node& node, const glm::mat4& transform) {
 
       if(node.mesh == Invalid_Mesh_Handle) {
@@ -385,7 +404,7 @@ private:
             material = materials[sub_mesh.material];
           }
 
-          if(material.base_texture > -1) {
+        /*  if(material.base_texture > -1) {
             Texture2D& base_texture = textures[material.base_texture];
             glBindTexture(GL_TEXTURE_2D, base_texture.renderer_id);
             glActiveTexture(0);
@@ -396,9 +415,11 @@ private:
             glActiveTexture(0);
 
             glUniform1i(glGetUniformLocation(shader, "tex_slot"), 0);
-          }
+          }*/
 
+          auto identity = glm::mat4(1.0f);
           glUniformMatrix4fv(glGetUniformLocation(shader, "u_model"), 1, GL_FALSE, &model[0][0]);
+          glUniformMatrix4fv(glGetUniformLocation(shader, "u_animation_channel_1"), 1, GL_FALSE, &identity[0][0]);
           glUniform4fv(glGetUniformLocation(shader, "u_base_color"), 1, &material.base_color[0]);
 
           if(sub_mesh.vao.has_indices) {
@@ -417,15 +438,15 @@ private:
 
       for(int child_node_handle : node.children) {
         auto child_node = nodes[child_node_handle];
-        draw_node(child_node, transform * child_node.transform);
+        draw_node(child_node, transform * (child_node.translation * (child_node.rotation * child_node.animation_transform ) * child_node.scale));
       }
 
     };
 
-    for(auto scene : scenes) {
+    for(const auto& scene : scenes) {
       for(auto scene_node_handle : scene.nodes) {
         auto node = nodes[scene_node_handle];
-        draw_node(node, node.transform);
+        draw_node(node, (node.translation * (node.rotation * node.animation_transform) * node.scale));
       }
     }
 

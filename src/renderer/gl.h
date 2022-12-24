@@ -27,6 +27,7 @@ enum struct Buffer_Type {
 };
 
 struct Buffer {
+  std::vector<unsigned char> data;
   uint32_t renderer_id{};
   int target{};
 };

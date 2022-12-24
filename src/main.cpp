@@ -8,12 +8,13 @@
 #include <fstream>
 #include "input.h"
 
-#include "renderer/gltf.h"
+#include "renderer/gltf/gltf.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
 #include <imgui/imgui.h>
 
 #include "window/window.h"
+#include "renderer/animation_player.h"
 
 std::string read_entire_file(const std::string& path) {
   std::ifstream file(path);
@@ -65,21 +66,19 @@ void render() {
   camera = Editor_Camera({0, 0, 3}, Projection_Data(1600.0f / 900));
   camera.projection_data.far = 10000000.0f;
 
-  float delta;
-  float last_frame;
+  float delta{};
+  float last_frame{};
 
-  GLTF_Data data;
-  GLTF_Data data2;
-  //data.load("assets/Box/glTF/Box.gltf");
+  std::unique_ptr<GLTF_Data> data = std::make_unique<GLTF_Data>();
   //data.load("assets/Sponza/glTF/Sponza.gltf");
+  //data->load("assets/AnimatedCube/glTF/AnimatedCube.gltf");
+  data->load("assets/simple_animation.gltf");
+  Animation_Player animation_player(data.operator*(), data->animations[0]);
   //data.load("assets/RiggedFigure/glTF/RiggedFigure.gltf");
   //data.load("assets/Fox/glTF/Fox.gltf");
-  data.load("assets/2CylinderEngine/glTF/2CylinderEngine.gltf");
-  //data.load("assets/ABeautifulGame/glTF/ABeautifulGame.gltf");
-  //data.load("assets/sasha/scene.gltf");
+  //data.load("assets/2CylinderEngine/glTF/2CylinderEngine.gltf");
   //data.load("assets/glTF/FlightHelmet.gltf");
-  //data.load("assets/Lantern/glTF/Lantern.gltf");
-  //data2.load("assets/sasha/scene.gltf");
+  //data.load("assets/sasha/scene.gltf");
 
   ImGui::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
@@ -125,12 +124,13 @@ void render() {
 
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
-    data.draw_all_scenes(shader.renderer_id);
+    animation_player.play(delta);
+    data->draw_all_scenes(shader.renderer_id);
     //data2.draw_all_scenes(shader.renderer_id);
 
-    ImGui::Begin("GLTF File");
-    //imgui_list_gltf_file(data);
-    ImGui::End();
+    // ImGui::Begin("GLTF File");
+    // //imgui_list_gltf_file(data);
+    // ImGui::End();
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
