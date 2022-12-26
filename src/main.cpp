@@ -24,36 +24,6 @@ std::string read_entire_file(const std::string& path) {
 }
 Editor_Camera camera({0, 0, 3}, Projection_Data(1600.0f / 900));
 
-void imgui_list_gltf_file(const GLTF_Data& gltf_data) {
-
-  std::function<void(Node)> list_nodes_recursively;
-
-  list_nodes_recursively = [gltf_data, &list_nodes_recursively] (const Node& node){
-    const auto node_name = node.name.length() > 0 ? node.name.c_str() : "No Name";
-    if(node.children.size() > 0) {
-      if (ImGui::TreeNode(node_name)) {
-        for (auto child_node_handle : node.children) {
-          list_nodes_recursively(gltf_data.nodes[child_node_handle]);
-        }
-        ImGui::TreePop();
-      }
-    } else {
-      ImGui::Text(node_name);
-    }
-  };
-
-  for(const auto& scene : gltf_data.scenes) {
-
-    const auto scene_name = scene.name.length() > 0 ? scene.name.c_str() : "No Name";
-    if(ImGui::TreeNode(scene_name)) {
-      for(const auto& node_handle : scene.nodes) {
-        list_nodes_recursively(gltf_data.nodes[node_handle]);
-      }
-      ImGui::TreePop();
-    }
-  }
-
-}
 
 void render() {
   Window window;
@@ -69,11 +39,13 @@ void render() {
   float delta{};
   float last_frame{};
 
-  std::unique_ptr<GLTF_Data> data = std::make_unique<GLTF_Data>();
+  std::unique_ptr<gltf::Data> data = std::make_unique<gltf::Data>();
   //data.load("assets/Sponza/glTF/Sponza.gltf");
   //data->load("assets/AnimatedCube/glTF/AnimatedCube.gltf");
-  data->load("assets/simple_animation.gltf");
+  //data->load("assets/simple_animation.gltf");
+  data->load("assets/BoxAnimated/glTF/BoxAnimated.gltf");
   Animation_Player animation_player(data.operator*(), data->animations[0]);
+  //Animation animation(data.operator*(), data->animations[0]);
   //data.load("assets/RiggedFigure/glTF/RiggedFigure.gltf");
   //data.load("assets/Fox/glTF/Fox.gltf");
   //data.load("assets/2CylinderEngine/glTF/2CylinderEngine.gltf");
@@ -128,9 +100,20 @@ void render() {
     data->draw_all_scenes(shader.renderer_id);
     //data2.draw_all_scenes(shader.renderer_id);
 
-    // ImGui::Begin("GLTF File");
-    // //imgui_list_gltf_file(data);
-    // ImGui::End();
+   /* ImGui::Begin("GLTF File");
+    ImGui::Text("Animation");
+
+    int i = 0;
+    for(const auto& track : animation.tracks) {
+      ImGui::Text("Track %d", i);
+      ImGui::Text("Track Duration: %f", track.duration);
+      ImGui::Text("Track Start Time: %f", track.start_time);
+      for(const auto& frame : track.frames) {
+        ImGui::Text("  Time %f", frame.time);
+      }
+      ++i;
+    }
+    ImGui::End();*/
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
