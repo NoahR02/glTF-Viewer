@@ -7,6 +7,7 @@ class Animation_Player {
   bool paused = false;
   const gltf::Animation& animation;
   gltf::Data& animation_data;
+  bool is_first = true;
 
 public:
   float current_time = 0.0f;
@@ -27,6 +28,12 @@ public:
     // Remove this later. Loop animation:
     if(current_time > animation.total_animation_duration) {
       current_time = 0.0f;
+      is_first = true;
+    }
+
+    if(is_first) {
+      current_time = 0.0f;
+      is_first = false;
     }
 
     for(auto& channel : animation.channels) {
