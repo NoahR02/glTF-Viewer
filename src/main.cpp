@@ -43,12 +43,14 @@ void render() {
   //data.load("assets/Sponza/glTF/Sponza.gltf");
   //data->load("assets/AnimatedCube/glTF/AnimatedCube.gltf");
   //data->load("assets/simple_animation.gltf");
-  data->load("assets/BoxAnimated/glTF/BoxAnimated.gltf");
-  Animation_Player animation_player(data.operator*(), data->animations[0]);
+  //data->load("assets/BoxAnimated/glTF/BoxAnimated.gltf");
+  //data->load("assets/AnimatedMorphCube/glTF/AnimatedMorphCube.gltf");
+  data->load("assets/simple_morph.gltf");
+  //Animation_Player animation_player(data.operator*(), data->animations[0]);
   //Animation animation(data.operator*(), data->animations[0]);
   //data.load("assets/RiggedFigure/glTF/RiggedFigure.gltf");
-  //data.load("assets/Fox/glTF/Fox.gltf");
-  //data.load("assets/2CylinderEngine/glTF/2CylinderEngine.gltf");
+  //data->load("assets/Fox/glTF/Fox.gltf");
+  //data->load("assets/2CylinderEngine/glTF/2CylinderEngine.gltf");
   //data.load("assets/glTF/FlightHelmet.gltf");
   //data.load("assets/sasha/scene.gltf");
 
@@ -96,7 +98,7 @@ void render() {
 
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
-    animation_player.play(delta);
+    //animation_player.play(delta);
     data->draw_all_scenes(shader.renderer_id);
     //data2.draw_all_scenes(shader.renderer_id);
 

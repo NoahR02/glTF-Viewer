@@ -343,6 +343,10 @@ namespace gltf {
               frame.translation = glm::vec3(transform_buffer_f32[i * num_of_components + 0], transform_buffer_f32[i * num_of_components + 1], transform_buffer_f32[i * num_of_components + 2]);
             } else if(channel.target_path == gltf::Target_Path::Rotation) {
               frame.rotation = glm::quat(transform_buffer_f32[i * num_of_components + 3], transform_buffer_f32[i * num_of_components + 0], transform_buffer_f32[i * num_of_components + 1], transform_buffer_f32[i * num_of_components + 2]);
+            } else if(channel.target_path == gltf::Target_Path::Scale) {
+              std::cout << "FIXME: Implement Scaling Animations." << std::endl;
+            } else if(channel.target_path == gltf::Target_Path::Weights) {
+              std::cout << "FIXME: Implement Weight Animations." << std::endl;
             }
 
             channel.frames.push_back(frame);
@@ -408,21 +412,21 @@ namespace gltf {
             Material material;
             if(sub_mesh.material == -1) {
               material = default_material;
-            } else {
-              material = materials[sub_mesh.material];
-            }
 
-            if(material.base_texture > -1) {
-              Texture2D& base_texture = textures[material.base_texture];
-              glBindTexture(GL_TEXTURE_2D, base_texture.renderer_id);
-              glActiveTexture(0);
-
-              glUniform1i(glGetUniformLocation(shader, "tex_slot"), 0);
-            } else {
               glBindTexture(GL_TEXTURE_2D, material.base_texture);
               glActiveTexture(0);
 
               glUniform1i(glGetUniformLocation(shader, "tex_slot"), 0);
+            } else {
+              material = materials[sub_mesh.material];
+
+              if(material.base_texture > -1) {
+                Texture2D &base_texture = textures[material.base_texture];
+                glBindTexture(GL_TEXTURE_2D, base_texture.renderer_id);
+                glActiveTexture(0);
+
+                glUniform1i(glGetUniformLocation(shader, "tex_slot"), 0);
+              }
             }
 
             auto identity = glm::mat4(1.0f);
